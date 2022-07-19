@@ -1,3 +1,4 @@
+const { query } = require("express");
 const couponmangement = require("../models/couponmangement");
 
 const create_coupon = async (req, res, next) => {
@@ -74,7 +75,8 @@ const delete_id = async (req, res, next) => {
 };
 
 const searchcoupon = async (req, res, next) => {
-  const { search, isactive } = req.query;
+  try{ 
+    const { search, isactive, page, limit} = req.query;
   let paramSearch = {};
   if (search) {
     paramSearch.$or = [
@@ -92,35 +94,21 @@ const searchcoupon = async (req, res, next) => {
       },
     ];
   }
-  if (isactive) paramSearch.isactive = isactive;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const start = (page - 1) * limit;
-  const end = page * limit;
-
-  const results = {};
-  if (start > 0) {
-    results.previous = {
-      page: page - 1,
+  if (req.query.hasOwnProperty(isactive)) paramSearch.isactive = isactive;
+  let response = await couponmangement.find(paramSearch)
+      .skip(limit * page - 1)
+      .limit(limit);
+    let total = await couponmangement.countDocuments();
+    let pageMeta = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPage: Math.ceil(total / limit),
+      total: parseInt(total),
     };
-  }
-
-  results.coupons = await couponmangement
-    .find(paramSearch)
-    .sort({ offerName: 1 })
-    .skip(start)
-    .limit(limit);
-
-
-  if (end < (await couponmangement.countDocuments())) {
-    results.next = {
-      page: page + 1,
-    };
-  }
-  if (!results.coupons) {
-    return res.json({ error: "No results found" });
-  }
-  return res.json(results);
+  return res.send({data:response,pageMeta,message:"success"});
+} catch(err){
+  
+}
 };
 module.exports = {
   create_coupon,
